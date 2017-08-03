@@ -1,0 +1,35 @@
+<div style="text-align:center">
+  <h1>
+    Welcome to {{title}}!!
+  </h1>
+
+
+<div *ngIf="!connected">
+	<select [(ngModel)]="selectedUser">
+	 	<option *ngFor="let u of users" [ngValue]="u">{{u.name}}</option>
+	</select>
+	<button (click)="onConnect()">Go</button>
+</div>
+
+<table border="1" *ngIf="connected">
+	<tr>
+		<td><app-clientlist></app-clientlist></td>
+		<td width="650">
+			<input [(ngModel)]="inputMsg" type="text" name="message" placeholder="message">
+			<button (click)="sendMsg()">Send</button>
+		</td>
+	</tr>
+	<tr>
+		<td><button (click)="confirmSubscription()">Confirm</button></td>
+		<td><button (click)="startCall()">Start Call</button></td>
+	</tr>
+	<tr>
+		<td><button *ngIf="callInc" (click)="acceptCall()">Accept Call</button></td>
+	</tr>
+	<tr>
+		<td><button *ngIf="callActive" (click)="hangUp()">Hangup</button></td>
+	</tr>
+</table>
+</div>
+
+

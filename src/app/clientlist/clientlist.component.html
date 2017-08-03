@@ -1,0 +1,9 @@
+<h3>Clients</h3>
+<div>Selected: <div *ngIf="selectedClient">{{selectedClient.id}}</div></div>
+<hr>
+<ul>
+   <li *ngFor="let client of clients" (click)="selectClient(client.id)">{{client.id}}</li> 
+</ul>
+
+
+
