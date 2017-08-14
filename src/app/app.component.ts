@@ -1,8 +1,16 @@
 import { Component, OnInit } from '@angular/core';
 import { ClientService } from './service/client.service';
+import * as SockJS from 'sockjs-client';
+import * as Stomp from 'stompjs';
+import { Buffer } from 'buffer';
 
 
 declare var QB: any;
+// declare var QBMediaRecorder: any;
+declare var RecordRTC: any;
+declare var MediaStreamRecorder: any;
+declare var StereoAudioRecorder: any;
+
 
 @Component( {
     selector: 'app-root',
@@ -33,12 +41,16 @@ export class AppComponent implements OnInit {
 
     public currentSession: any = null;
 
+    public recorder: any = null;
+
+    public stompClient: any = null;
+
     constructor( private service: ClientService ) {
     }
 
 
     ngOnInit() {
-
+        this.connectWS();
     }
 
     sendMsg() {
@@ -90,6 +102,16 @@ export class AppComponent implements OnInit {
         QB.webrtc.onStopCallListener = function( session, userId, extension ) {
             console.log( 'call stopped' );
             session.stop( extension );
+        };
+
+        // Accept Call Listener (opponent will get confirmation)
+        QB.webrtc.onAcceptCallListener = function( session, userId, extension ) {
+            console.log( 'accept call' );
+        };
+
+        // Caller will get remote media stream from opponent
+        QB.webrtc.onRemoteStreamListener = function( session, userID, remoteStream ) {
+
         };
     }
 
@@ -166,11 +188,6 @@ export class AppComponent implements OnInit {
         const mediaParams = {
             audio: true,
             video: false,
-            //            options: {
-            //                muted: true,
-            //                mirror: true
-            //            },
-            //            elemId: 'localVideo'
         };
 
         this.currentSession.getUserMedia( mediaParams, ( error, stream ) => {
@@ -194,16 +211,13 @@ export class AppComponent implements OnInit {
     acceptCall() {
         console.log( 'accept call...' );
 
+        
+
         console.log( this.currentSession );
 
         const mediaParams = {
             audio: true,
             video: false,
-            //            options: {
-            //                muted: true,
-            //                mirror: true
-            //            },
-            //            elemId: 'localVideo'
         };
 
         this.currentSession.getUserMedia( mediaParams, ( error, stream ) => {
@@ -217,6 +231,34 @@ export class AppComponent implements OnInit {
                 this.currentSession.accept( extension );
                 this.callInc = false;
                 this.callActive = true;
+
+                // start recording
+                console.log( 'start recording...' );
+
+
+//                this.recorder = new MediaStreamRecorder(stream);
+//                this.recorder.mimeType = 'audio/wav';
+                
+                
+                this.recorder = RecordRTC( stream, {
+                    type: 'audio',
+                    recorderType: MediaStreamRecorder,
+                    mimeType: 'audio/webm',
+                    timeSlice: 1000
+                } );
+
+
+                this.recorder.startRecording();
+
+                const timer = setInterval(() => {
+                    if ( this.callActive ) {
+                        const internal = this.recorder.getInternalRecorder();
+                        const blob = new Blob( internal.getArrayOfBlobs(), {type: 'audio/webm'} );
+                        this.recorder.clearRecordedData();
+//                        this.stompClient.send( "/app/hello", {}, blob );
+                        console.log( "blob", blob );
+                    }
+                }, 1000 );
             }
         } );
     }
@@ -225,5 +267,58 @@ export class AppComponent implements OnInit {
         console.log( 'hangup' );
         this.currentSession.stop( {} );
         this.callActive = false;
+
+
+//        const reader = new FileReader();
+//        reader.addEventListener( 'loadend', () => {
+//            //            console.log( 'readerResult', reader.result );
+//            const bytearray = new Uint8Array(reader.result);
+//            this.stompClient.send( "/app/hello", {}, bytearray );
+//        } );
+
+        // stop recording
+        console.log( 'stop recording' );
+
+        this.recorder.stopRecording(() => {
+            const blob = this.recorder.getBlob();
+//            reader.readAsArrayBuffer( blob );
+            //            reader.readAsBinaryString( blob );
+            //            this.stompClient.send( "/app/hello", {}, blob );
+
+            
+            const reader = new FileReader();
+            let base64data;
+            reader.readAsDataURL(blob);
+            reader.onloadend = () => {
+                base64data = reader.result;
+//                this.stompClient.send('/app/hello', {}, base64data);
+//                console.log(base64data);
+            }
+            
+            
+            // download file
+//            const a = window.document.createElement('a');
+//            a.href = window.URL.createObjectURL(blob);
+//            a.download = 'file.webm';
+//            document.body.appendChild(a);
+//            a.click();
+//            document.body.removeChild(a);
+            
+            
+            console.log( "blob", blob );
+            //            this.recorder.save('testfile');
+
+        } );
+    }
+
+    connectWS() {
+        console.log( 'connect to WS ...' );
+        //        const socket = new SockJS( 'http://localhost:8000/gs-guide-websocket' );
+        const socket = new WebSocket( 'ws://localhost:8000/gs-guide-websocket/websocket' );
+        socket.binaryType = 'arraybuffer';
+        this.stompClient = Stomp.over( socket );
+        this.stompClient.connect( {}, function( frame ) {
+            console.log( "stomp connect ..." );
+        } );
     }
 }
