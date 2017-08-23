@@ -44,13 +44,15 @@ export class AppComponent implements OnInit {
     public recorder: any = null;
 
     public stompClient: any = null;
+    
+    public socket: WebSocket = null;
 
     constructor( private service: ClientService ) {
     }
 
 
     ngOnInit() {
-        this.connectWS();
+        
     }
 
     sendMsg() {
@@ -210,7 +212,7 @@ export class AppComponent implements OnInit {
 
     acceptCall() {
         console.log( 'accept call...' );
-
+        this.connectWS();
         
 
         console.log( this.currentSession );
@@ -234,31 +236,37 @@ export class AppComponent implements OnInit {
 
                 // start recording
                 console.log( 'start recording...' );
-
-
-//                this.recorder = new MediaStreamRecorder(stream);
-//                this.recorder.mimeType = 'audio/wav';
                 
-                
+                // record audio/webm
                 this.recorder = RecordRTC( stream, {
                     type: 'audio',
                     recorderType: MediaStreamRecorder,
-                    mimeType: 'audio/webm',
-                    timeSlice: 1000
+                    mimeType: 'audio/webm'
+//                    timeSlice: 1000
                 } );
+                
+                // record 16khz wav
+//                this.recorder = RecordRTC(stream, {
+//                    type: 'audio',
+//                    recorderType: StereoAudioRecorder,
+//                    desiredSampRate: 16000,
+//                    numberOfAudioChannels: 1
+//                    
+//                });
 
 
                 this.recorder.startRecording();
 
-                const timer = setInterval(() => {
-                    if ( this.callActive ) {
-                        const internal = this.recorder.getInternalRecorder();
-                        const blob = new Blob( internal.getArrayOfBlobs(), {type: 'audio/webm'} );
-                        this.recorder.clearRecordedData();
+                // send blob every second
+//                const timer = setInterval(() => {
+//                    if ( this.callActive ) {
+//                        const internal = this.recorder.getInternalRecorder();
+//                        const blob = new Blob( internal.getArrayOfBlobs(), {type: 'audio/webm'} );
+//                        this.recorder.clearRecordedData();
 //                        this.stompClient.send( "/app/hello", {}, blob );
-                        console.log( "blob", blob );
-                    }
-                }, 1000 );
+//                        console.log( "blob", blob );
+//                    }
+//                }, 1000 );
             }
         } );
     }
@@ -268,32 +276,39 @@ export class AppComponent implements OnInit {
         this.currentSession.stop( {} );
         this.callActive = false;
 
-
-//        const reader = new FileReader();
-//        reader.addEventListener( 'loadend', () => {
-//            //            console.log( 'readerResult', reader.result );
-//            const bytearray = new Uint8Array(reader.result);
-//            this.stompClient.send( "/app/hello", {}, bytearray );
-//        } );
-
         // stop recording
         console.log( 'stop recording' );
 
         this.recorder.stopRecording(() => {
             const blob = this.recorder.getBlob();
+            
+            
+            const reader = new FileReader();
+            reader.addEventListener('loadend', () => {
+                const buffer = Buffer.from(reader.result);
+                console.log('buffer', buffer);
+                
+                this.socket.send(buffer);
+                this.socket.send('EOS');
+            })
+            
+            
+            reader.readAsArrayBuffer(blob);
+            
+            
 //            reader.readAsArrayBuffer( blob );
             //            reader.readAsBinaryString( blob );
             //            this.stompClient.send( "/app/hello", {}, blob );
 
             
-            const reader = new FileReader();
-            let base64data;
-            reader.readAsDataURL(blob);
-            reader.onloadend = () => {
-                base64data = reader.result;
+//            const reader = new FileReader();
+//            let base64data;
+//            reader.readAsDataURL(blob);
+//            reader.onloadend = () => {
+//                base64data = reader.result;
 //                this.stompClient.send('/app/hello', {}, base64data);
 //                console.log(base64data);
-            }
+//            }
             
             
             // download file
@@ -303,22 +318,47 @@ export class AppComponent implements OnInit {
 //            document.body.appendChild(a);
 //            a.click();
 //            document.body.removeChild(a);
-            
-            
-            console.log( "blob", blob );
-            //            this.recorder.save('testfile');
-
+//            
+//            console.log( "blob", blob );
         } );
     }
 
     connectWS() {
         console.log( 'connect to WS ...' );
+        const socketURI = 'ws://localhost:8000/gs-guide-websocket';
+        
+        // using sockjs and stomp
+        
         //        const socket = new SockJS( 'http://localhost:8000/gs-guide-websocket' );
-        const socket = new WebSocket( 'ws://localhost:8000/gs-guide-websocket/websocket' );
-        socket.binaryType = 'arraybuffer';
-        this.stompClient = Stomp.over( socket );
-        this.stompClient.connect( {}, function( frame ) {
-            console.log( "stomp connect ..." );
-        } );
+        
+        
+//        const contentType = 'audio/x-raw,+layout=(string)interleaved,+rate=(int)16000,+format=(string)S16LE,+channels=(int)1';
+//        const socketURI = 'ws://211.192.34.12:8888/client/ws/speech';
+        
+        
+//        this.stompClient = Stomp.over( socket );
+//        this.stompClient.connect( {}, function( frame ) {
+//            console.log( "stomp connect ..." );
+//        } );
+        
+        // without stomp and sockjs
+        this.socket = new WebSocket( socketURI );
+        this.socket.binaryType = 'arraybuffer';
+        
+        this.socket.onopen = () => {
+            console.log('connected to websocket ...');
+        }
+        
+        this.socket.onerror = (e) => {
+            console.log('websocket error', e);
+        }
+        
+        this.socket.onmessage = (e) => {
+            console.log('received message', e.data);
+        }
+        
+        this.socket.onclose = () => {
+            console.log('closed websocket');
+        }
     }
 }

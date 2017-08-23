@@ -21,6 +21,7 @@
     "@angular/platform-browser": "^4.0.0",
     "@angular/platform-browser-dynamic": "^4.0.0",
     "@angular/router": "^4.0.0",
+    "blob-to-buffer": "^1.2.6",
     "buffer": "^5.0.7",
     "core-js": "^2.4.1",
     "rxjs": "^5.1.0",
